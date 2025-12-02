@@ -1,0 +1,114 @@
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('🏺 ARQUEOLOGÍA')
+      .addItem('📄 Generar Fichas PDF/Doc', 'generarFichas')
+      .addToUi();
+}
+
+function generarFichas() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("BD_REGISTRO");
+  const data = sheet.getDataRange().getValues();
+  
+  // Crear el documento de texto
+  const doc = DocumentApp.create('Fichas_Ceramica_Exportadas_' + new Date().toLocaleDateString());
+  const body = doc.getBody();
+  
+  let piezasProcesadas = 0;
+
+  // Empezamos en la fila 1 (la 0 son los encabezados)
+  for (let i = 1; i < data.length; i++) {
+    // Si la casilla de verificación (Columna A, índice 0) está marcada (TRUE)
+    if (data[i][0] === true) {
+      
+      const fila = data[i];
+      // Mapeo de datos (Ajustado a que añadiste columna Checkbox al inicio)
+      const codigo = fila[4]; // Columna E (Código Pieza)
+      const clase = fila[5];  // Columna F
+      const tipo = fila[7];   // Columna H
+      const fotoUrl = fila[21]; // Columna V (Foto)
+      const link3D = fila[22];  // Columna W (3D)
+      
+      // --- DISEÑO DE LA FICHA EN EL DOC ---
+      
+      // 1. Título de la pieza
+      body.appendParagraph("FICHA DE INVENTARIO: " + codigo)
+          .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+      
+      body.appendHorizontalRule();
+      
+      // 2. Tabla de Datos Técnicos
+      // Creamos una matriz para la tabla con los datos más relevantes
+      const datosTabla = [
+        ["Contexto / UE:", fila[2]], // Columna C
+        ["Clase:", clase + " (" + fila[6] + ")"],
+        ["Tipo / Subtipo:", tipo + " / " + fila[8]],
+        ["Medidas (Al x Boca):", fila[9] + " cm x " + fila[10] + " cm"],
+        ["Índices (IP / IA):", fila[13] + " / " + fila[14]],
+        ["Descripción Pasta:", fila[16] + " / " + fila[17]], // Pasta / Desgrasante
+        ["Tratamiento Sup.:", fila[18]], // Tratamiento
+        ["Cronología:", fila[20]] // Cronología
+      ];
+      
+      const table = body.appendTable(datosTabla);
+      
+      // Estilo básico de la tabla
+      table.setBorderWidth(0); // Borde invisible para limpieza visual
+      for (let r = 0; r < table.getNumRows(); r++) {
+        table.getRow(r).getCell(0).setBold(true).setWidth(150); // Negrita primera columna
+      }
+      
+      // 3. Insertar Foto (Si existe enlace)
+      if (fotoUrl && fotoUrl.toString().includes("drive.google.com")) {
+        try {
+          body.appendParagraph("\nDocumentación Gráfica:").setHeading(DocumentApp.ParagraphHeading.HEADING3);
+          const fileId = extraerIdDrive(fotoUrl);
+          const imgBlob = DriveApp.getFileById(fileId).getBlob();
+          const imagen = body.appendImage(imgBlob);
+          
+          // Ajustar tamaño imagen para que no se salga (max 500px ancho)
+          const ancho = imagen.getWidth();
+          const alto = imagen.getHeight();
+          if (ancho > 500) {
+            imagen.setWidth(500);
+            imagen.setHeight((500/ancho) * alto);
+          }
+        } catch (e) {
+          body.appendParagraph("[Error al cargar imagen: Asegúrate que el enlace es accesible o público]");
+        }
+      }
+
+      // 4. Insertar Enlace 3D
+      if (link3D) {
+        body.appendParagraph("\n");
+        const par = body.appendParagraph("🔗 Ver Modelo 3D Interactivo");
+        par.setLinkUrl(link3D);
+        par.setHeading(DocumentApp.ParagraphHeading.HEADING3);
+      }
+
+      // Salto de página para la siguiente pieza
+      body.appendPageBreak();
+      piezasProcesadas++;
+    }
+  }
+  
+  doc.saveAndClose();
+  
+  if (piezasProcesadas > 0) {
+    const urlDoc = doc.getUrl();
+    SpreadsheetApp.getUi().alert('✅ Éxito: Se han generado ' + piezasProcesadas + ' fichas.\n\nAbre este enlace para ver el documento:\n' + urlDoc);
+  } else {
+    SpreadsheetApp.getUi().alert('⚠️ No has seleccionado ninguna pieza. Marca las casillas en la Columna A.');
+  }
+}
+
+// Función auxiliar para sacar la ID del link de Drive
+function extraerIdDrive(url) {
+  let id = "";
+  const parts = url.split(/^(([^:\/?#]+):)?(\/\/([^\/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/);
+  if (url.indexOf('id=') >= 0) {
+    id = (url.split('id=')[1]).split('&')[0];
+  } else {
+    id = parts[5].split("/")[3];
+  }
+  return id;
+}
