@@ -30,4 +30,4 @@ Basado en:
 
 ## 📄 Licencia
 
-[Tu Licencia, ej: MIT] - Siéntete libre de usarlo y modificarlo para tus excavaciones.
+M.I.T - Siéntete libre de usarlo y modificarlo para tus excavaciones.
